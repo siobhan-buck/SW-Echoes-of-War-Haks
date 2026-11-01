@@ -24834,8 +24834,56 @@
       "text": "Soul Ascension Burst"
     },
     {
+      "id": 6208,
+      "text": "Challenge"
+    },
+    {
+      "id": 6209,
+      "text": "Chain Lightning"
+    },
+    {
+      "id": 6210,
+      "text": "Hurls lightning at a target that arcs to up to two nearby enemies, dealing Electrical damage and inflicting Shock."
+    },
+    {
+      "id": 6211,
+      "text": "Blood Siphon"
+    },
+    {
+      "id": 6212,
+      "text": "Drains a target's vitality, dealing Physical damage, inflicting Weakened, and healing the user for half the damage dealt."
+    },
+    {
       "id": 6213,
       "text": "While active, your hostile auto-attacks deal Force damage instead of their normal damage type, including elemental damage, and cost 2 FP each."
+    },
+    {
+      "id": 6214,
+      "text": "Shadowflow"
+    },
+    {
+      "id": 6215,
+      "text": "PvP Combat"
+    },
+    {
+      "id": 6216,
+      "text": "PvP Healing Reduction I"
+    },
+    {
+      "id": 6217,
+      "text": "PvP Healing Reduction II"
+    },
+    {
+      "id": 6218,
+      "text": "PvP Healing Reduction III"
+    },
+    {
+      "id": 6219,
+      "text": "PvP Healing Reduction IV"
+    },
+    {
+      "id": 6220,
+      "text": "PvP Healing Reduction V"
     },
     {
       "id": 20401,
@@ -60715,35 +60763,35 @@
     },
     {
       "id": 79805,
-      "text": "What do you call 5 siths piled on top of a lightsaber? A Sith-Kabob!"
+      "text": "We log ALL chat messages, including tells, to our database for auditing purposes. By continuing to play here you agree to allow your conversations to be stored."
     },
     {
       "id": 79806,
-      "text": "Why shouldn't you ask Yoda for money? Because he's always a little short."
+      "text": "Star Wars: Echoes of War takes place in the year 3906 BBY, 50 years after the disappearance of Revan. The server follows the canon ending of Star Wars: Knights of the Old Republic I, but does not follow the events of KOTOR II, instead following its own timeline."
     },
     {
       "id": 79807,
-      "text": "What program do Jedi use to view PDF files? Adobe Wan Kenobi."
+      "text": "Press 'B' to open the player guide! It describes the custom mechanics of the server."
     },
     {
       "id": 79808,
-      "text": "Why did Anakin Skywalker cross the road? To get to the Dark Side."
+      "text": "Use the holonet terminals to broadcast messages across the server and to the discord."
     },
     {
       "id": 79809,
-      "text": "What do you call Chewbacca when he has chocolate stuck in his hair? Chocolate Chip Wookiee."
+      "text": "Party chat has been replaced with Comms - like a group call for everyone in the party. It works across areas."
     },
     {
       "id": 79810,
-      "text": "I'm really tired of writing these loading hints."
+      "text": "You can change the description other players see of your character by goint to Settings at the bottom of your character info screen, then selecting Change Description"
     },
     {
       "id": 79811,
-      "text": "What do you call a pirate droid? Arrrrr2-D2"
+      "text": "This is just a video game."
     },
     {
       "id": 79812,
-      "text": "What do you get when you cross an elephant with Darth Vader? An ele-Vader."
+      "text": "Got feedback for us? Come on by the discord and chat https://discord.gg/qBgR9hJefs."
     },
     {
       "id": 79813,
@@ -89332,51 +89380,6 @@
     {
       "id": 192751,
       "text": "Bonebreaker Instinct"
-    },
-    {"id": 6208, "text": "Challenge"},
-    {
-      "id": 6209,
-      "text": "Chain Lightning"
-    },
-    {
-      "id": 6210,
-      "text": "Hurls lightning at a target that arcs to up to two nearby enemies, dealing Electrical damage and inflicting Shock."
-    },
-    {
-      "id": 6211,
-      "text": "Blood Siphon"
-    },
-    {
-      "id": 6212,
-      "text": "Drains a target's vitality, dealing Physical damage, inflicting Weakened, and healing the user for half the damage dealt."
-    },
-    {
-      "id": 6214,
-      "text": "Shadowflow"
-    },
-    {
-      "id": 6215,
-      "text": "PvP Combat"
-    },
-    {
-      "id": 6216,
-      "text": "PvP Healing Reduction I"
-    },
-    {
-      "id": 6217,
-      "text": "PvP Healing Reduction II"
-    },
-    {
-      "id": 6218,
-      "text": "PvP Healing Reduction III"
-    },
-    {
-      "id": 6219,
-      "text": "PvP Healing Reduction IV"
-    },
-    {
-      "id": 6220,
-      "text": "PvP Healing Reduction V"
     }
   ]
 }
