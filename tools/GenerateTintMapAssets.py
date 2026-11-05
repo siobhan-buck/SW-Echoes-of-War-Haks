@@ -26,6 +26,7 @@ from pathlib import Path
 from ModelLodAssets import ModelPath, model_paths
 
 import numpy as np
+import HavocGlowAssets
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -44,6 +45,7 @@ SOURCE_MANIFEST = Path(__file__).with_name("TintMapSources.json")
 MODULAR_FALLBACKS = Path(__file__).with_name("TintMapFallbacks.json")
 STOCK_PALETTE_RESOURCES = Path(__file__).with_name("TintMapStockPalettes.json")
 MATERIAL_SOURCES = Path(__file__).with_name("TintMapMaterialSources.json")
+PALETTE_METAL_MATERIALS = Path(__file__).with_name("PaletteMetalMaterials.json")
 WHITE_TEXTURE = REPOSITORY_ROOT / "sw_item" / "plt_white.tga"
 PALETTE_TEXTURE = REPOSITORY_ROOT / "sw_item" / "plt_palette.tga"
 # Entire atlas, including its bottom-origin RGBA descriptor and unused rows.
@@ -57,7 +59,25 @@ TINT_FRAGMENT_SHADER = "fs_plt_tinter"
 TINT_MAPPED_FRAGMENT_SHADER = "fs_plt_tinter_nm"
 TINT_HAIR_MAPPED_FRAGMENT_SHADER = "fs_plt_hair_nm"
 # Restore native color filtering only for reported dye edge regressions.
-SMOOTH_TINT_MATERIALS = frozenset({"helm_053", "pfh0_neck267", "pmh0_neck267"})
+SMOOTH_TINT_MATERIALS = frozenset({"helm_053", "helm_287", "pfh0_neck267", "pmh0_neck267"})
+# Republic Trooper and Havoc specular/roughness maps replace the palette's metal
+# reflectance, so dyed metal renders as a pale, nonmetallic sheen. Unbind them and
+# keep the normal and illumination maps; the palette then drives metal like every
+# other dyed part.
+PALETTE_SPECULAR_MAPS = frozenset({
+    "rep_chest_s", "rep_chest_r", "rep_composite_s", "rep_composite_r", "rep_foot_s",
+    "rep_foot_r", "rep_hand_s", "rep_hand_r", "rep_helmm_s", "rep_helmm_r",
+    "rep_leg_s", "rep_leg_r",
+    "helm_321_s", "pmh0_bicepr278_s", "pmh0_chest316_s", "pmh0_footr272_s",
+    "pmh0_forer282_s", "pmh0_handr267_s", "pmh0_legr269_s", "pmh0_pelvis270_s",
+    "pmh0_shinr272_s", "pmh0_shor261_s",
+})
+# Forearm 30 shares these maps with cloth-only forearm 103; only its metal mask opts in.
+PALETTE_SPECULAR_MASK_MAPS = {
+    "tm_2c6676909ab21": frozenset({
+        "pfh0_forel030_s", "pfh0_forer030_s", "pmh0_forel030_s", "pmh0_forer030_s",
+    }),
+}
 AUTHORED_HAIR_FRAGMENT_SHADERS = {"fslit_aniso_nm"}
 _MTR_PATHS_BY_RESREF: dict[str, Path] | None = None
 _SOURCE_MTR_PATHS_BY_RESREF: dict[str, list[Path]] | None = None
@@ -69,6 +89,7 @@ _TABLE_REFERENCED_RESREFS: set[str] | None = None
 _HAK_DIRECTORIES: tuple[Path, ...] | None = None
 _NATIVE_MODULAR_PALETTES: set[str] | None = None
 _MATERIAL_SOURCES: dict[str, dict[str, object]] | None = None
+_PALETTE_METAL_MATERIALS: dict[str, dict[str, object]] | None = None
 _MATERIAL_BITMAP_ALIASES: dict[str, str] = {}
 _PROFILE_ALIASES: dict[str, tuple[str, list[str]]] = {}
 _PROFILE_SIGNATURES: dict[tuple[str, str], tuple[tuple[tuple[str, ...], str], ...]] = {}
@@ -684,6 +705,8 @@ def tint_fragment_shader(
     source_material: str,
     lines: list[str],
 ) -> str:
+    if source_material.lower() in HavocGlowAssets.MAPPED_GLOW_MATERIALS:
+        return HavocGlowAssets.MAPPED_GLOW_SHADER
     authored_lines = source_shader_config_lines(source_material)
     if (
         source_material.lower() in AUTHORED_HAIR_MATERIALS
@@ -789,6 +812,10 @@ def find_tint_source_models() -> dict[str, Path]:
     if shoulder_manifest.is_file():
         # Phenotype-specific skins retain the authored shoulder materials.
         derived.update(json.loads(shoulder_manifest.read_text())["models"])
+    part_manifest = REPOSITORY_ROOT / "tools" / "PartSkinModels.json"
+    if part_manifest.is_file():
+        # Robe-skeleton part skins keep their source part's materials and dyes.
+        derived.update(json.loads(part_manifest.read_text())["models"])
     for name in active:
         match = re.fullmatch(r"p[fm][a-z]0_head1(\d{3})", name)
         if match and f"helm_{match[1]}" in active:
@@ -1624,6 +1651,7 @@ def native_modular_material_choices(
     choices = {}
     for selector, _, _ in surfaces:
         bitmap = _MATERIAL_BITMAP_ALIASES.get(bitmaps[selector], bitmaps[selector])
+        bitmap = MIRRORED_MATERIAL_PROFILES.get(bitmap, bitmap)
         profile = original_materials.get(bitmap, {})
         lines = list(profile.get("lines", []))
         texture0 = next((line.split()[1].lower() for line in lines if re.match(r"^\s*texture0\s+\S+", line, re.IGNORECASE)), "")
@@ -1653,7 +1681,9 @@ def material_profile_signature(source: str, profile: tuple[str, list[str]] | Non
     profile_name = profile[0] if profile is not None else "@canonical"
     key = (source, profile_name)
     if key not in _PROFILE_SIGNATURES:
-        text = tint_material_text(mtr_path(source), source, "mask", 1, 1, source, profile)
+        # Unbinding palette specular maps must not rename scoped aliases either.
+        text = tint_material_text(mtr_path(source), source, "mask", 1, 1, source, profile,
+                                  keep_palette_specular_maps=True)
         # Edge filtering is a per-source opt-in; it must not rename scoped aliases.
         _PROFILE_SIGNATURES[key] = tuple(sorted(
             (directive, " ".join(line.split()).lower())
@@ -1828,6 +1858,7 @@ def build_model_material_plan(
         )
     }
 
+    rows.update(HavocGlowAssets.model_rows(models, read_model_material_bindings))
     _NATIVE_ATTACHMENT_MATERIALS = native_attachment_materials
     _NATIVE_ATTACHMENT_SOURCES = native_attachment_sources
     return (
@@ -2262,11 +2293,18 @@ def update_mtr(
     path.write_text(text, encoding="utf-8", newline="\n")
 
 
+# A mirrored part whose one side carries a leftover same-name raster takes its twin's
+# profile. Female left shin 264's DDS repeats the art of the shared shin 264 palette
+# (identical UVs), but natively it overrode the palette, so the left shin ignored dyes
+# while the right one took them. Both sides now render the same dyeable palette.
+MIRRORED_MATERIAL_PROFILES = {
+    "pfh0_shinl264": "pfh0_shinr264",
+}
+
 AUTHORED_DIFFUSE_SOURCES = {
     "helm_101": "ad_helm101",
     "pfh0_neck012": "ad_fh_neck012",
     "pmh0_neck012": "ad_mh_neck012",
-    "pfh0_shinl264": "ad_fh_shin264",
 }
 _AUTHORED_DIFFUSE_TEXTURES = None
 
@@ -2279,6 +2317,13 @@ def authored_diffuse_texture(source_material: str) -> str:
     return _AUTHORED_DIFFUSE_TEXTURES.get(source_material.lower(), "plt_white")
 
 
+def palette_metal_materials() -> dict[str, dict[str, object]]:
+    global _PALETTE_METAL_MATERIALS
+    if _PALETTE_METAL_MATERIALS is None:
+        _PALETTE_METAL_MATERIALS = json.loads(PALETTE_METAL_MATERIALS.read_text(encoding="utf-8"))
+    return _PALETTE_METAL_MATERIALS
+
+
 def tint_material_text(
     path: Path,
     material: str,
@@ -2289,6 +2334,7 @@ def tint_material_text(
     profile: tuple[str, list[str]] | None = None,
     *,
     native_palette: bool = False,
+    keep_palette_specular_maps: bool = False,
 ) -> str:
     source_material = source_material or material
     smooth_edges = source_material.lower() in SMOOTH_TINT_MATERIALS
@@ -2318,6 +2364,18 @@ def tint_material_text(
             diffuse_texture = next(line.split()[1] for line in original_lines if line.lower().startswith("texture0 "))
         else:
             diffuse_texture = "plt_white"
+    elif keep_palette_specular_maps:
+        # Canonical signatures must retain the authored maps after generated MTRs unbind them.
+        record = palette_metal_materials().get(source_material.lower(), {})
+        generated_mask = next((match.group(1).lower() for line in generated_lines
+                               if (match := re.match(r"^\s*texture7\s+(\S+)\s*$", line, re.IGNORECASE))), None)
+        authored_maps = record.get("maps", {}) if record.get("mask") == generated_mask else {}
+        original_lines = [
+            f"{match.group(1)} {authored_maps[match.group(1).lower()]}"
+            if (match := re.match(r"^\s*(texture[23])\s+null\s*$", line, re.IGNORECASE))
+            and match.group(1).lower() in authored_maps else line
+            for line in original_lines
+        ]
     mapped_shader = uses_mapped_shader(original_lines)
     original_fragment_shaders = fragment_shaders(original_lines)
     selected_fragment_shader = tint_fragment_shader(source_material, original_lines)
@@ -2348,6 +2406,19 @@ def tint_material_text(
         re.IGNORECASE,
     )
     lines = [line for line in original_lines if not replaced.match(line)]
+    if not keep_palette_specular_maps:
+        palette_metal = palette_metal_materials().get(material.lower(), {}).get("mask") == texture.lower()
+        lines = [
+            f"{match.group(1)} null"
+            if (match := re.match(r"^\s*(texture[23])\s+(\S+)\s*$", line, re.IGNORECASE))
+            and (palette_metal or match.group(2).lower() in PALETTE_SPECULAR_MAPS
+                 or match.group(2).lower() in PALETTE_SPECULAR_MASK_MAPS.get(texture.lower(), ()))
+            else line
+            for line in lines
+        ]
+    if source_material.lower() in HavocGlowAssets.MAPPED_GLOW_MATERIALS:
+        lines = [line for line in lines if not re.match(r'^\s*parameter\s+float\s+glowLayer\b', line, re.IGNORECASE)]
+        lines.append('parameter float glowLayer 7.0')
     if texture9_alpha:
         lines = [line for line in lines if not re.match(r"^\s*texture3\b", line, re.IGNORECASE)]
 
@@ -2422,6 +2493,7 @@ def is_generated_pair(model: str, texture: str, width: int, height: int, dds_pat
                 TINT_FRAGMENT_SHADER,
                 TINT_MAPPED_FRAGMENT_SHADER,
                 TINT_HAIR_MAPPED_FRAGMENT_SHADER,
+                HavocGlowAssets.MAPPED_GLOW_SHADER,
             )
         )
         and f"texture7 {texture}" in mtr
@@ -3531,6 +3603,7 @@ def check_tint_mtr_structure(path: Path) -> list[str]:
         f"customshaderfs {TINT_FRAGMENT_SHADER}",
         f"customshaderfs {TINT_MAPPED_FRAGMENT_SHADER}",
         f"customshaderfs {TINT_HAIR_MAPPED_FRAGMENT_SHADER}",
+        f"customshaderfs {HavocGlowAssets.MAPPED_GLOW_SHADER}",
     }:
         errors.append(f"unexpected tint fragment shader '{fragment_shaders[0]}'")
 
@@ -3540,6 +3613,7 @@ def check_tint_mtr_structure(path: Path) -> list[str]:
         if mapped_shader and fragment_shader not in {
             TINT_MAPPED_FRAGMENT_SHADER,
             TINT_HAIR_MAPPED_FRAGMENT_SHADER,
+            HavocGlowAssets.MAPPED_GLOW_SHADER,
         }:
             errors.append("mapped tint material does not use the mapped tint shader")
         elif not mapped_shader and fragment_shader != TINT_FRAGMENT_SHADER:
@@ -3614,6 +3688,7 @@ def audit() -> None:
     entries = load_source_manifest()
     import GenerateAuthoredDiffuseTintMaps
     errors: list[str] = GenerateAuthoredDiffuseTintMaps.validate(entries)
+    errors.extend(HavocGlowAssets.validate(REPOSITORY_ROOT))
     if (REPOSITORY_ROOT / "sw_2da" / "roberender.2da").is_file():
         import GenerateRobeRgbModels
         errors.extend(GenerateRobeRgbModels.check())
@@ -3813,6 +3888,8 @@ def audit() -> None:
                     errors.append(f"{model}: MTR lost required dedicated alpha-map compatibility")
             if model in AUTHORED_HAIR_MAPS:
                 for texture_slot, texture_resref in AUTHORED_HAIR_MAPS[model].items():
+                    if texture_slot in (2, 3) and palette_metal_materials().get(model, {}).get("mask") == entry["texture"]:
+                        texture_resref = "null"
                     if f"texture{texture_slot} {texture_resref}" not in mtr:
                         errors.append(
                             f"{model}: MTR lost authored texture{texture_slot} binding '{texture_resref}'"
@@ -3897,7 +3974,10 @@ def audit() -> None:
         if len(material) > 16 or not material.isascii():
             errors.append(f"{model}: invalid material resref '{material}' in tint catalog")
         source = active_aliases.get(material, material)
-        if source not in entries:
+        if material in HavocGlowAssets.EMISSIVE_TINT_LAYERS:
+            if layers != HavocGlowAssets.EMISSIVE_TINT_LAYERS[material]:
+                errors.append(f'{model}: incorrect emissive tint layers for {material}')
+        elif source not in entries:
             errors.append(f"{model}: tint catalog references unknown material '{material}'")
         elif layers != entries[source]["layers"]:
             errors.append(f"{model}: tint catalog layer list disagrees with material '{material}'")
@@ -3926,6 +4006,10 @@ def audit() -> None:
                 errors.append(f"tintmap.2da contains duplicate model/material row {model}/{material}")
             seen_output_pairs.add(pair)
             source = active_aliases.get(material, material)
+            if material in HavocGlowAssets.EMISSIVE_TINT_LAYERS:
+                if columns[3] != ','.join(map(str, HavocGlowAssets.EMISSIVE_TINT_LAYERS[material])):
+                    errors.append(f'tintmap.2da row {physical_index}: incorrect emissive tint layers')
+                continue
             if source not in entries:
                 errors.append(
                     f"tintmap.2da compatibility row {physical_index} references unknown material '{material}'"

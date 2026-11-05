@@ -77,6 +77,17 @@ class RobeRgbManifestTests(unittest.TestCase):
             g.version_animation_families(families, prior, lambda *_: False, verify_revision=reject)
         self.assertEqual({key + "/old": "pmh_ra001"}, prior["animation_bridges"])
 
+    def test_animation_update_preserves_exactly_the_recorded_native_wearers(self):
+        prior = {"native_wearer_sources": {"pmh200": {}, "pfa200": {}}}
+        self.assertEqual(["pfa200", "pmh200"], g.native_wearer_selection([], prior, True))
+        self.assertEqual(["pmh200", "pfa200"], g.native_wearer_selection(["pmh200", "pfa200"], prior, True))
+        with self.assertRaisesRegex(ValueError, r"missing \['pfa200'\], unrecorded \[\]"):
+            g.native_wearer_selection(["pmh200"], prior, True)
+        with self.assertRaisesRegex(ValueError, r"unrecorded \['pmh201'\]"):
+            g.native_wearer_selection(["pmh200", "pfa200", "pmh201"], prior, True)
+        self.assertEqual(["pmh200"], g.native_wearer_selection(["pmh200"], prior, False))
+        self.assertEqual([], g.native_wearer_selection([], prior, False))
+
     def test_current_apply_exits_before_creating_a_build(self):
         with patch.object(sys, "argv", ["generate", "--apply", "--game-data", "game"]), \
                 patch.object(g, "check", return_value=[]), \
@@ -408,6 +419,9 @@ class RobeAnimationPackagingTests(unittest.TestCase):
         cls.addClassCleanup(NativeRobeAnimationBankTests.doClassCleanups)
         cls.original = NativeRobeAnimationBankTests.original
         cls.parts = NativeRobeAnimationBankTests.parts
+        binary = NativeRobeAnimationBankTests.stage / "binary"
+        cls.library = g.poses.Library(
+            lambda name: (binary / f"{name}.mdl").read_bytes() if (binary / f"{name}.mdl").is_file() else None)
 
     def install(self, root):
         active, files = {}, {}
@@ -463,7 +477,7 @@ class RobeAnimationPackagingTests(unittest.TestCase):
             (stage / "binary" / "pmh34.mdl").write_bytes(wearer)
             with patch.object(g.banks, "split", return_value=self.parts):
                 names, sets = g.package_animation_models(stage, {"pmh_ra001"},
-                    {"pmh_ra001", "pmh34"}, {}, {})
+                    {"pmh_ra001", "pmh34"}, {}, {}, self.library)
             self.assertEqual(set(self.parts) | {"pmh34"}, names)
             self.assertEqual(wearer, (stage / "binary" / "pmh34.mdl").read_bytes())
             self.assertEqual(g.hashlib.sha256(self.original).hexdigest(), sets["pmh_ra001"]["source_sha256"])
@@ -482,9 +496,18 @@ class RobeAnimationPackagingTests(unittest.TestCase):
             with patch.object(g.banks, "split", return_value=self.parts):
                 with self.assertRaisesRegex(ValueError, "not a verified prior"):
                     g.package_animation_models(stage, {"pmh_ra001"}, {"pmh_ra001"}, {},
-                        {"pmh_ra001_b01": occupied})
+                        {"pmh_ra001_b01": occupied}, self.library)
             self.assertEqual(self.original, source.read_bytes())
             self.assertEqual(self.parts["pmh_ra001_b01"], occupied.read_bytes())
+
+    def test_bridges_cannot_be_packaged_without_their_body_animation_library(self):
+        with tempfile.TemporaryDirectory() as folder:
+            stage = Path(folder)
+            (stage / "binary").mkdir()
+            (stage / "binary" / "pmh_ra001.mdl").write_bytes(self.original)
+            with self.assertRaisesRegex(ValueError, "body animation library"):
+                g.package_animation_models(stage, {"pmh_ra001"}, {"pmh_ra001"}, {}, {})
+            self.assertEqual(self.original, (stage / "binary" / "pmh_ra001.mdl").read_bytes())
 
     def test_all_generated_outputs_must_stay_below_the_transfer_limit(self):
         with tempfile.TemporaryDirectory() as folder:
