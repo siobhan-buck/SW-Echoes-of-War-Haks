@@ -1,4 +1,5 @@
 Discord: https://discord.gg/qBgR9hJefs
+
 This repository holds all of the hakpak content used on the Star Wars: Echoes of War server for Neverwinter Nights. 
 
 These files can be packed into hakpaks by running the "CompileSWLOR.exe" program. Simply run this, wait for it to finish and then find the packed files in the output folder.
