@@ -6,5 +6,6 @@
 2          INJURED           6411   
 3          HEAVILY_WOUNDED   6412            
 4          NEAR_DEATH        6413    
-5          DEAD              16777217  
+5          DEAD              16777217
+6          PERMA_DEAD        6414  
     
